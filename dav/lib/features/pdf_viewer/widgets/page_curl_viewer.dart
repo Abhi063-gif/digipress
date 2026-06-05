@@ -149,7 +149,7 @@ class PageCurlViewerState extends State<PageCurlViewer>
       return;
     }
 
-    if (_currentScale > 1.05) {
+    if (_currentScale > 1.01) {
       debugPrint('[CURL] Pan-while-zoomed started');
       return;
     }
@@ -177,7 +177,7 @@ class PageCurlViewerState extends State<PageCurlViewer>
       return;
     }
 
-    if (_currentScale > 1.05) {
+    if (_currentScale > 1.01) {
       // Pan while zoomed
       final delta = details.localFocalPoint - _gestureStartFocal;
       setState(() {
@@ -236,10 +236,19 @@ class PageCurlViewerState extends State<PageCurlViewer>
     final size = context.size;
     if (size == null) return;
 
-    // Max offset is half of the "overflowing" part of the image
-    // since the image is centered.
-    final maxDx = (size.width * (_currentScale - 1)) / 2;
-    final maxDy = (size.height * (_currentScale - 1)) / 2;
+    final currentImg = widget.renderer.getImage(_page);
+    double w = size.width;
+    double h = size.height;
+
+    if (currentImg != null) {
+      double scale = min(size.width / currentImg.width, size.height / currentImg.height);
+      w = currentImg.width * scale;
+      h = currentImg.height * scale;
+    }
+
+    // Max offset is half of the "overflowing" part of the rendered image
+    final maxDx = (w * (_currentScale - 1)) / 2;
+    final maxDy = (h * (_currentScale - 1)) / 2;
 
     setState(() {
       _panOffset = Offset(
@@ -316,6 +325,18 @@ class PageCurlViewerState extends State<PageCurlViewer>
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: (_) {},
+          onDoubleTap: () {
+            if (_ctrl.isAnimating) return;
+            setState(() {
+              if (_currentScale > 1.01) {
+                _currentScale = 1.0;
+                _panOffset = Offset.zero;
+              } else {
+                _currentScale = 2.5;
+                _panOffset = Offset.zero;
+              }
+            });
+          },
           onScaleStart: _onScaleStart,
           onScaleUpdate: _onScaleUpdate,
           onScaleEnd: _onScaleEnd,
@@ -399,7 +420,6 @@ class PageCurlPainter extends CustomPainter {
       final distance = direction == FlipDirection.forward
           ? (startX! - dragX!)
           : (dragX! - startX!);
-      // We normalize progress so it feels fast but starts small
       t = (distance / (size.width * 0.85)).clamp(0.0, 1.0);
     } else {
       t = progress ?? 0.0;
@@ -411,160 +431,89 @@ class PageCurlPainter extends CustomPainter {
       return;
     }
 
-    // 3. Draw under-page (next page)
-    if (nextImage != null) {
-      _drawImage(canvas, size, nextImage!, paint);
-    } else {
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()..color = const Color(0xFFF8F6F1),
-      );
+    // 3. Calculate rendered bounds of the image (BoxFit.contain)
+    double imgScale = min(size.width / currentImage.width, size.height / currentImage.height);
+    double w = currentImage.width * imgScale;
+    double h = currentImage.height * imgScale;
+    double left = (size.width - w) / 2;
+    double top = (size.height - h) / 2;
+    final rect = Rect.fromLTWH(left, top, w, h);
+
+    // 4. Draw casting shadow on the flat page underneath
+    // The flat page underneath is on the right of the pivot 'left'.
+    final double shadowOpacity = (sin(t * pi) * 0.28).clamp(0.0, 1.0);
+    if (shadowOpacity > 0.0) {
+      final shadowPaint = Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(left, top),
+          Offset(left + w * 0.4 * (1 - t + 0.2), top),
+          [
+            Colors.black.withValues(alpha: shadowOpacity),
+            Colors.transparent,
+          ],
+        );
+      canvas.save();
+      canvas.clipRect(rect);
+      canvas.drawRect(rect, shadowPaint);
+      canvas.restore();
     }
 
-    // 4. 3D Page Curl Calculations
-    // We use a curve for fold progress to make the start more "triangular" and gradual
-    final curvedT = Curves.easeInQuad.transform(t);
-    final foldAmount = curvedT * size.width * 1.3;
-
-    // cylinderRadius is the thickness of the 3D roll - starts very small
-    final cylinderRadius = size.width * 0.12 * sin(t * pi * 0.5);
-
-    final Path pagePath = Path();
-    final Path curlPath = Path();
-    final Path shadowPath = Path();
-
+    // 5. Draw flat page underneath
     if (direction == FlipDirection.forward) {
-      // Current page path (un-curled part)
-      pagePath
-        ..moveTo(0, 0)
-        ..lineTo(size.width - foldAmount, 0)
-        ..lineTo(size.width, foldAmount)
-        ..lineTo(size.width, size.height)
-        ..lineTo(0, size.height)
-        ..close();
-
-      // The 3D Curl (the part lifting up)
-      curlPath
-        ..moveTo(size.width - foldAmount, 0)
-        ..cubicTo(
-          size.width - foldAmount + cylinderRadius,
-          -cylinderRadius * 0.5,
-          size.width - cylinderRadius * 0.5,
-          foldAmount - cylinderRadius,
-          size.width,
-          foldAmount,
-        )
-        ..lineTo(size.width - cylinderRadius, foldAmount + cylinderRadius)
-        ..lineTo(size.width - foldAmount - cylinderRadius, cylinderRadius)
-        ..close();
-
-      shadowPath
-        ..moveTo(size.width - foldAmount, 0)
-        ..lineTo(size.width, foldAmount)
-        ..lineTo(size.width + 20, foldAmount + 20)
-        ..lineTo(size.width - foldAmount + 20, 20)
-        ..close();
+      if (nextImage != null) {
+        _drawImage(canvas, size, nextImage!, paint);
+      } else {
+        canvas.drawRect(
+          rect,
+          Paint()..color = const Color(0xFFF8F6F1),
+        );
+      }
     } else {
-      // Backward turn logic
-      pagePath
-        ..moveTo(size.width, 0)
-        ..lineTo(foldAmount, 0)
-        ..lineTo(0, foldAmount)
-        ..lineTo(0, size.height)
-        ..lineTo(size.width, size.height)
-        ..close();
-
-      curlPath
-        ..moveTo(foldAmount, 0)
-        ..cubicTo(
-          foldAmount - cylinderRadius,
-          -cylinderRadius * 0.5,
-          cylinderRadius * 0.5,
-          foldAmount - cylinderRadius,
-          0,
-          foldAmount,
-        )
-        ..lineTo(cylinderRadius, foldAmount + cylinderRadius)
-        ..lineTo(foldAmount + cylinderRadius, cylinderRadius)
-        ..close();
-
-      shadowPath
-        ..moveTo(foldAmount, 0)
-        ..lineTo(0, foldAmount)
-        ..lineTo(-20, foldAmount + 20)
-        ..lineTo(foldAmount - 20, 20)
-        ..close();
+      _drawImage(canvas, size, currentImage, paint);
     }
 
-    // 5. Render Layers
+    // 6. Draw 3D Rotating Page
+    final double angle = direction == FlipDirection.forward
+        ? -t * pi
+        : -pi + t * pi;
 
-    // a. Draw reveal shadow (on the next page)
     canvas.save();
-    final shadowPaint = Paint()
-      ..shader = ui.Gradient.linear(
-        direction == FlipDirection.forward
-            ? Offset(size.width - foldAmount, 0)
-            : Offset(foldAmount, 0),
-        direction == FlipDirection.forward
-            ? Offset(size.width - foldAmount + 40, 40)
-            : Offset(foldAmount - 40, 40),
-        [Colors.black.withValues(alpha: 0.3 * t), Colors.transparent],
-      );
-    canvas.drawPath(shadowPath, shadowPaint);
-    canvas.restore();
+    
+    // Clip to canvas area
+    canvas.clipRect(Offset.zero & size);
 
-    // b. Clip and draw current page
-    canvas.save();
-    canvas.clipPath(pagePath);
-    _drawImage(canvas, size, currentImage, paint);
+    final matrix = Matrix4.identity()
+      ..translate(left, top + h / 2) // move pivot to origin
+      ..setEntry(3, 2, -0.0012) // 3D perspective
+      ..rotateY(angle) // rotate around Y-axis
+      ..translate(-left, -(top + h / 2)); // move back
+      
+    canvas.transform(matrix.storage);
 
-    // Add "crease" shading to current page edge
-    final creasePaint = Paint()
-      ..shader = ui.Gradient.linear(
-        direction == FlipDirection.forward
-            ? Offset(size.width - foldAmount - 20, 0)
-            : Offset(foldAmount + 20, 0),
-        direction == FlipDirection.forward
-            ? Offset(size.width - foldAmount, 0)
-            : Offset(foldAmount, 0),
-        [Colors.transparent, Colors.black.withValues(alpha: 0.1)],
-      );
-    canvas.drawRect(Offset.zero & size, creasePaint);
-    canvas.restore();
+    // Draw the rotating page content
+    if (direction == FlipDirection.forward) {
+      _drawImage(canvas, size, currentImage, paint);
+    } else {
+      if (nextImage != null) {
+        _drawImage(canvas, size, nextImage!, paint);
+      }
+    }
 
-    // c. Draw 3D Curl / Backside
-    canvas.save();
+    // Draw shading overlay on the rotating page to simulate 3D lighting
+    final double shadingOpacity = (sin(t * pi) * 0.42).clamp(0.0, 1.0);
+    if (shadingOpacity > 0.0) {
+      final shadingPaint = Paint()
+        ..color = Colors.black.withValues(alpha: shadingOpacity)
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(rect, shadingPaint);
+    }
 
-    // Backside surface
-    final backsidePaint = Paint()
-      ..color = const Color(0xFFF5F5F5)
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(curlPath, backsidePaint);
-
-    // 3D Roll Shading (Gradients to create cylindrical volume)
-    final rollPaint = Paint()
-      ..shader = ui.Gradient.linear(
-        direction == FlipDirection.forward
-            ? Offset(size.width - foldAmount, 0)
-            : Offset(foldAmount, 0),
-        direction == FlipDirection.forward
-            ? Offset(size.width - foldAmount + cylinderRadius, cylinderRadius)
-            : Offset(foldAmount - cylinderRadius, cylinderRadius),
-        [
-          Colors.black.withValues(alpha: 0.15),
-          Colors.white.withValues(alpha: 0.2),
-          Colors.black.withValues(alpha: 0.05),
-        ],
-        [0.0, 0.4, 1.0],
-      );
-    canvas.drawPath(curlPath, rollPaint);
-
-    // Edge Highlight
-    final highlightPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.3)
+    // Draw page edge line highlight for a realistic paper edge
+    final edgePaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.08 * (1 - t))
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawPath(curlPath, highlightPaint);
+      ..strokeWidth = 1.0;
+    canvas.drawRect(rect, edgePaint);
 
     canvas.restore();
   }
