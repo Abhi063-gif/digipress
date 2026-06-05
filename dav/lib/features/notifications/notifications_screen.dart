@@ -222,6 +222,47 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   // ── Loaded list ───────────────────────────────────────────────────────────
   Widget _buildList(int newCount) {
+    if (_items.isEmpty) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+              ),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.notifications_none_rounded,
+                        size: 64,
+                        color: AppColors.textHint,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No notifications yet',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       children: [
@@ -274,36 +315,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         const SizedBox(height: 16),
 
-        if (_items.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 48),
-            child: Column(
-              children: [
-                Icon(Icons.notifications_none_rounded,
-                    size: 48, color: AppColors.textHint),
-                SizedBox(height: 12),
-                Text('No notifications yet',
-                    style: TextStyle(
-                        fontSize: 14, color: AppColors.textSecondary)),
-              ],
+        ..._items.map((n) => _NotificationCard(item: n)),
+        const SizedBox(height: 16),
+        const Column(
+          children: [
+            Icon(Icons.notifications_none_rounded,
+                size: 32, color: AppColors.textHint),
+            SizedBox(height: 8),
+            Text(
+              "You've reached the end of your feed.",
+              style: TextStyle(fontSize: 12.5, color: AppColors.textHint),
             ),
-          )
-        else ...[
-          ..._items.map((n) => _NotificationCard(item: n)),
-          const SizedBox(height: 16),
-          const Column(
-            children: [
-              Icon(Icons.notifications_none_rounded,
-                  size: 32, color: AppColors.textHint),
-              SizedBox(height: 8),
-              Text(
-                "You've reached the end of your feed.",
-                style: TextStyle(fontSize: 12.5, color: AppColors.textHint),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-        ],
+          ],
+        ),
+        const SizedBox(height: 16),
       ],
     );
   }
