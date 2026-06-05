@@ -4,6 +4,7 @@ import '../../core/services/api_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/skeleton.dart';
 import '../pdf_viewer/pdf_viewer_screen.dart';
+import '../shell/main_shell.dart';
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -124,7 +125,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded,
+              color: AppColors.textPrimary),
+          onPressed: () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const MainShell(initialIndex: 0)),
+              (route) => false,
+            );
+          },
+        ),
         title: const Text(
           'Notifications',
           style: TextStyle(
