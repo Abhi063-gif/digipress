@@ -35,12 +35,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
             
-            <!-- Deep linking for https://digipress.app/pdf -->
+            <!-- Deep linking for https://www.mydigipress.in/pdf -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="digipress.app" android:pathPrefix="/pdf" />
+                <data android:scheme="https" android:host="www.mydigipress.in" android:pathPrefix="/pdf" />
+                <data android:scheme="https" android:host="mydigipress.in" android:pathPrefix="/pdf" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
