@@ -1,0 +1,7 @@
+<?php
+// ── iLovePDF API Credentials ──────────────────────────────────────────────────
+// Dashboard: https://developer.ilovepdf.com
+// ⚠️  Add config/ilove_pdf.php to .gitignore — NEVER commit secrets
+// ─────────────────────────────────────────────────────────────────────────────
+define('ILOVE_PUBLIC_KEY', 'YOUR_ILOVE_PUBLIC_KEY');
+define('ILOVE_SECRET_KEY', 'YOUR_ILOVE_SECRET_KEY');

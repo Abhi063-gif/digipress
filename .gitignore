@@ -15,3 +15,15 @@ Thumbs.db
 
 # Local php configuration or logs
 *.log
+
+# Backend logs and temp files
+backend/*.log
+backend/otp_log.txt
+
+# Backend config secrets
+backend/config/database.php
+backend/config/cloudinary.php
+backend/config/mailer.php
+backend/config/ilove_pdf.php
+backend/config/*.json
+

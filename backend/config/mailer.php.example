@@ -1,0 +1,179 @@
+<?php
+// ── Gmail SMTP Configuration ─────────────────────────────────────────────────
+//
+// HOW TO SETUP (one-time):
+// 1. Go to your Google Account → Security → 2-Step Verification (enable it)
+// 2. Then go to: https://myaccount.google.com/apppasswords
+// 3. Create a new App Password → select "Mail" + "Windows Computer"
+// 4. Google gives you a 16-char password like: abcd efgh ijkl mnop
+// 5. Paste it below WITHOUT spaces: 'abcdefghijklmnop'
+//
+// ⚠️  Never commit real credentials to git. Add config/mailer.php to .gitignore
+// ─────────────────────────────────────────────────────────────────────────────
+
+define('SMTP_HOST',     'smtp.gmail.com');
+define('SMTP_PORT',     587);                        // TLS / STARTTLS port
+define('SMTP_USERNAME', 'YOUR_SMTP_EMAIL@gmail.com');  // Professional DigiPress Gmail
+define('SMTP_PASSWORD', 'YOUR_SMTP_APP_PASSWORD');     // App Password for digipress.dav@gmail.com
+define('SMTP_FROM',     'YOUR_SMTP_EMAIL@gmail.com');
+define('SMTP_FROM_NAME','DigiPress');
+
+// Debug log path – every SMTP step is written here so you can see what fails
+define('SMTP_LOG', __DIR__ . '/../smtp_debug.log');
+
+/**
+ * Sends an email via Gmail SMTP (STARTTLS on port 587).
+ * Logs every SMTP exchange to smtp_debug.log for easy debugging.
+ *
+ * @throws RuntimeException on any SMTP-level failure
+ */
+function smtpSendMail(string $to, string $subject, string $htmlBody): bool {
+
+    $host     = SMTP_HOST;
+    $port     = SMTP_PORT;
+    $user     = SMTP_USERNAME;
+    $pass     = SMTP_PASSWORD;
+    $from     = SMTP_FROM;
+    $fromName = SMTP_FROM_NAME;
+    $logFile  = SMTP_LOG;
+
+    // ── Helper: append to debug log ──────────────────────────────────────────
+    $log = function(string $msg) use ($logFile): void {
+        file_put_contents(
+            $logFile,
+            '[' . date('Y-m-d H:i:s') . '] ' . $msg . PHP_EOL,
+            FILE_APPEND | LOCK_EX
+        );
+    };
+
+    $log("--- BEGIN smtpSendMail to=$to subject=$subject ---");
+
+    // ── Open TCP connection ──────────────────────────────────────────────────
+    $errno = 0; $errstr = '';
+    $sock = @fsockopen($host, $port, $errno, $errstr, 15);
+    if (!$sock) {
+        $log("CONNECT FAILED: $errstr ($errno)");
+        throw new RuntimeException("SMTP connect failed: $errstr ($errno)");
+    }
+    stream_set_timeout($sock, 15);
+    $log("CONNECT OK to $host:$port");
+
+    // ── Low-level read: one SMTP response line ────────────────────────────────
+    $readLine = function() use ($sock, $log): string {
+        $line = '';
+        while (!feof($sock)) {
+            $ch = fread($sock, 1);
+            if ($ch === false || $ch === '') break;
+            $line .= $ch;
+            if ($ch === "\n") break;
+        }
+        $log("S: " . rtrim($line));
+        return $line;
+    };
+
+    // ── Read a full (possibly multi-line) SMTP response ───────────────────────
+    $readResponse = function() use ($readLine): string {
+        $last = '';
+        do {
+            $last = $readLine();
+        } while (strlen($last) >= 4 && $last[3] === '-');
+        return $last;
+    };
+
+    // ── Send a command and return the full server response ────────────────────
+    $cmd = function(string $command) use ($sock, $readResponse, $log): string {
+        $log("C: " . rtrim($command));
+        fwrite($sock, $command . "\r\n");
+        return $readResponse();
+    };
+
+    // ── Assert response code; throw on mismatch ───────────────────────────────
+    $expect = function(string $resp, string $code, string $context) use ($log): void {
+        if (substr($resp, 0, 3) !== $code) {
+            $log("FAIL [$context]: expected $code, got: " . rtrim($resp));
+            throw new RuntimeException("SMTP $context failed (expected $code): " . rtrim($resp));
+        }
+        $log("OK [$context]");
+    };
+
+    // ── SMTP handshake ────────────────────────────────────────────────────────
+    $resp = $readResponse();          // 220 greeting
+    $expect($resp, '220', 'GREETING');
+
+    $resp = $cmd("EHLO localhost");
+    $expect($resp, '250', 'EHLO');
+
+    // ── STARTTLS ──────────────────────────────────────────────────────────────
+    $resp = $cmd("STARTTLS");
+    $expect($resp, '220', 'STARTTLS');
+
+    $ok = stream_socket_enable_crypto(
+        $sock, true,
+        STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_1_CLIENT
+    );
+    if (!$ok) {
+        $log("TLS UPGRADE FAILED");
+        fclose($sock);
+        throw new RuntimeException("TLS upgrade failed. Check OpenSSL on your PHP installation.");
+    }
+    $log("TLS OK");
+
+    // Re-EHLO over TLS
+    $resp = $cmd("EHLO localhost");
+    $expect($resp, '250', 'EHLO-TLS');
+
+    // ── AUTH LOGIN ────────────────────────────────────────────────────────────
+    $resp = $cmd("AUTH LOGIN");
+    $expect($resp, '334', 'AUTH-LOGIN');
+
+    $resp = $cmd(base64_encode($user));
+    $expect($resp, '334', 'AUTH-USER');
+
+    $resp = $cmd(base64_encode($pass));
+    $expect($resp, '235', 'AUTH-PASS');
+
+    // ── Envelope ─────────────────────────────────────────────────────────────
+    $resp = $cmd("MAIL FROM:<$from>");
+    $expect($resp, '250', 'MAIL-FROM');
+
+    $resp = $cmd("RCPT TO:<$to>");
+    $expect($resp, '250', 'RCPT-TO');
+
+    $resp = $cmd("DATA");
+    $expect($resp, '354', 'DATA');
+
+    // ── Build message ─────────────────────────────────────────────────────────
+    $dotStuff = fn(string $t): string => preg_replace('/^\./m', '..', $t);
+
+    $boundary  = md5(uniqid('', true));
+    $plainText = $dotStuff(wordwrap(strip_tags($htmlBody), 998, "\r\n", true));
+    $htmlPart  = $dotStuff($htmlBody);
+
+    $message = "From: =?UTF-8?B?" . base64_encode($fromName) . "?= <{$from}>\r\n"
+             . "To: <{$to}>\r\n"
+             . "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n"
+             . "MIME-Version: 1.0\r\n"
+             . "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n"
+             . "X-Mailer: DigiPress-PHP-Mailer/2.0\r\n"
+             . "\r\n"
+             . "--{$boundary}\r\n"
+             . "Content-Type: text/plain; charset=UTF-8\r\n"
+             . "Content-Transfer-Encoding: quoted-printable\r\n\r\n"
+             . $plainText . "\r\n"
+             . "--{$boundary}\r\n"
+             . "Content-Type: text/html; charset=UTF-8\r\n"
+             . "Content-Transfer-Encoding: base64\r\n\r\n"
+             . chunk_split(base64_encode($htmlPart), 76, "\r\n")
+             . "--{$boundary}--\r\n";
+
+    fwrite($sock, $message);
+    fwrite($sock, "\r\n.\r\n");
+    $resp = $readResponse();
+    $expect($resp, '250', 'DATA-END');
+
+    $cmd("QUIT");
+    fclose($sock);
+
+    $log("--- DONE: email delivered to $to ---");
+    return true;
+}

@@ -1,0 +1,42 @@
+# Increase upload limits for large PDF files
+# Note: These values must be less than or equal to the hardware/OS limits
+# and your PHP configuration.
+
+# For Apache with PHP module
+<IfModule mod_php.c>
+    php_value upload_max_filesize 100M
+    php_value post_max_size 120M
+    php_value memory_limit 512M
+    php_value max_execution_time 600
+    php_value max_input_time 600
+</IfModule>
+
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 100M
+    php_value post_max_size 120M
+    php_value memory_limit 512M
+    php_value max_execution_time 600
+    php_value max_input_time 600
+</IfModule>
+
+<IfModule mod_php8.c>
+    php_value upload_max_filesize 100M
+    php_value post_max_size 120M
+    php_value memory_limit 512M
+    php_value max_execution_time 600
+    php_value max_input_time 600
+</IfModule>
+
+# For FastCGI (Fcgid) - often needed on shared hosting
+<IfModule mod_fcgid.c>
+    FcgidMaxRequestLen 125829120
+    FcgidIOTimeout 600
+</IfModule>
+
+# Apache specific limit for the request body size (0 = unlimited)
+LimitRequestBody 125829120
+
+# Ensure Authorization header is passed to PHP (fixes "No Token Provided" issue)
+RewriteEngine On
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
