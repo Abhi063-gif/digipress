@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "65501223473",
+    "project_id": "digipress-c6d14",
+    "storage_bucket": "digipress-c6d14.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:65501223473:android:164505a12fc7ab07ddd310",
+        "android_client_info": {
+          "package_name": "com.dav.digipress"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLS5Skj1V9NicjMBFYobtDqZG2o7noKxo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
