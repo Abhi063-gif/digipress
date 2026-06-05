@@ -1,8 +1,6 @@
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -259,40 +257,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen>
 
   // ── Share ─────────────────────────────────────────────────────────────────
   Future<void> _handleShare() async {
-    if (widget.pdfUrl.isEmpty) {
-      Share.share(
-        '📄 Check out "${widget.title}" on DigiPress!\n\n'
-        '$_deepLinkBase?id=${widget.pubId ?? 0}',
-        subject: widget.title,
-      );
-      if (widget.pubId != null) ApiService().logShare(widget.pubId!);
-      return;
-    }
-    try {
-      final tmp = await getTemporaryDirectory();
-      final ext = _isImage ? 'jpg' : 'pdf';
-      final mime = _isImage ? 'image/jpeg' : 'application/pdf';
-      final file = File('${tmp.path}/share_${widget.pubId ?? 0}.$ext');
-      if (!file.existsSync()) {
-        await Dio().download(_effectivePdfUrl, file.path);
-      }
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: mime)],
-        subject: widget.title,
-        text: _isImage
-            ? '🖼 "${widget.title}" from DigiPress'
-            : '📄 "${widget.title}" from DigiPress',
-      );
-      if (widget.pubId != null) ApiService().logShare(widget.pubId!);
-    } catch (_) {
-      if (mounted) {
-        Share.share(
-          '📄 Check out "${widget.title}" on DigiPress!\n\n${widget.pdfUrl}',
-          subject: widget.title,
-        );
-        if (widget.pubId != null) ApiService().logShare(widget.pubId!);
-      }
-    }
+    final link = '$_deepLinkBase?id=${widget.pubId ?? 0}';
+    Share.share(
+      '📄 Check out "${widget.title}" on DigiPress!\n\n$link',
+      subject: widget.title,
+    );
+    if (widget.pubId != null) ApiService().logShare(widget.pubId!);
   }
 
   // ── Download ──────────────────────────────────────────────────────────────

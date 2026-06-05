@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.dav.digipress",
+      "sha256_cert_fingerprints": [
+        "14:3D:28:8C:30:54:D0:EF:F1:82:02:C7:8D:2C:95:FC:35:63:2A:55:5F:B6:E7:F9:A5:6F:E3:AD",
+        "YOUR_PRODUCTION_SHA256_FINGERPRINT_FROM_PLAY_CONSOLE"
+      ]
+    }
+  }
+]

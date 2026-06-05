@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "YOUR_APPLE_DEVELOPER_TEAM_ID.com.dav.digipress",
+        "paths": [
+          "/pdf",
+          "/pdf/*"
+        ]
+      }
+    ]
+  }
+}

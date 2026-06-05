@@ -40,3 +40,11 @@ LimitRequestBody 125829120
 RewriteEngine On
 RewriteCond %{HTTP:Authorization} ^(.*)
 RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
+
+# Force Content-Type for Apple App Site Association & Android Asset Links
+<Files "apple-app-site-association">
+    ForceType application/json
+</Files>
+<Files "assetlinks.json">
+    ForceType application/json
+</Files>
