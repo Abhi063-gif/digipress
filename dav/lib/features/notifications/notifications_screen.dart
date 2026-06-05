@@ -40,6 +40,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         setState(() {
           _items = List<Map<String, dynamic>>.from(data['notifications'] ?? []);
         });
+      } else {
+        final message = data['message']?.toString() ?? '';
+        if (message.toLowerCase().contains('unauthorized')) {
+          await ApiService().clearSession();
+          if (!mounted) return;
+          setState(() {
+            _items = [];
+          });
+        }
       }
     } catch (_) {
     } finally {
@@ -65,10 +74,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           _isLoading = false;
         });
       } else {
-        setState(() {
-          _error = data['message'] ?? 'Failed to load notifications';
-          _isLoading = false;
-        });
+        final message = data['message']?.toString() ?? '';
+        if (message.toLowerCase().contains('unauthorized')) {
+          await ApiService().clearSession();
+          if (!mounted) return;
+          setState(() {
+            _items = [];
+            _error = null;
+            _isLoading = false;
+          });
+        } else {
+          setState(() {
+            _error = data['message'] ?? 'Failed to load notifications';
+            _isLoading = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) setState(() { _error = 'Network error: $e'; _isLoading = false; });
